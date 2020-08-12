@@ -1,0 +1,100 @@
+## Начнем с уменьшения корневного раздела до8 G ##
+``` sudo vagrant ssh
+[vagrant@lvm ~]$ sudo -i
+[root@lvm ~]# df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+/dev/mapper/VolGroup00-LogVol00   38G  743M   37G   2% /
+devtmpfs                         109M     0  109M   0% /dev
+tmpfs                            118M     0  118M   0% /dev/shm
+tmpfs                            118M  4.5M  114M   4% /run
+tmpfs                            118M     0  118M   0% /sys/fs/cgroup
+/dev/sda2                       1014M   63M  952M   7% /boot
+tmpfs                             24M     0   24M   0% /run/user/1000
+[root@lvm ~]# lsblk 
+NAME                    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                       8:0    0   40G  0 disk 
+├─sda1                    8:1    0    1M  0 part 
+├─sda2                    8:2    0    1G  0 part /boot
+└─sda3                    8:3    0   39G  0 part 
+  ├─VolGroup00-LogVol00 253:0    0 37.5G  0 lvm  /
+  └─VolGroup00-LogVol01 253:1    0  1.5G  0 lvm  [SWAP]
+sdb                       8:16   0    1G  0 disk 
+sdc                       8:32   0    1G  0 disk 
+sdd                       8:48   0    1G  0 disk 
+sde                       8:64   0    1G  0 disk 
+[root@lvm ~]# pvcreate /dev/sdb
+  Physical volume "/dev/sdb" successfully created.
+[root@lvm ~]# pvs
+  PV         VG         Fmt  Attr PSize   PFree
+  /dev/sda3  VolGroup00 lvm2 a--  <38.97g    0 
+  /dev/sdb              lvm2 ---    1.00g 1.00g
+[root@lvm ~]# vgcreate VGroot /dev/sdb
+  Volume group "VGroot" successfully created
+[root@lvm ~]# vgs
+  VG         #PV #LV #SN Attr   VSize    VFree   
+  VGroot       1   0   0 wz--n- 1020.00m 1020.00m
+  VolGroup00   1   2   0 wz--n-  <38.97g       0 
+[root@lvm ~]# lvcreate -n LVroot -l +100%FREE /dev/VGroot
+  Logical volume "LVroot" created.
+[root@lvm ~]# lvs
+  LV       VG         Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  LVroot   VGroot     -wi-a----- 1020.00m                                                    
+  LogVol00 VolGroup00 -wi-ao----  <37.47g                                                    
+  LogVol01 VolGroup00 -wi-ao----    1.50g   ```
+  
+  ## Создадим файловую систему на новом томе, потом подмонтируем его для копирования инфо ##
+  
+  ``` [root@lvm ~]# mkfs.xfs /dev/VGroot/LVroot && mount /dev/VGroot/LVroot /mnt/
+meta-data=/dev/VGroot/LVroot     isize=512    agcount=4, agsize=65280 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=0, sparse=0
+data     =                       bsize=4096   blocks=261120, imaxpct=25
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0 ftype=1
+log      =internal log           bsize=4096   blocks=855, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+
+[root@lvm ~]# xfsdump -J - /dev/VolGroup00/LogVol00 | xfsrestore -J - /mnt/    #пользуемся заранее установленным xfsdump для копирования в /mnt из /
+xfsrestore: using file dump (drive_simple) strategy
+xfsrestore: version 3.1.7 (dump format 3.0)
+xfsdump: using file dump (drive_simple) strategy
+xfsdump: version 3.1.7 (dump format 3.0)
+xfsdump: level 0 dump of lvm:/
+xfsdump: dump date: Wed Aug 12 10:35:48 2020
+xfsdump: session id: f1f40c37-9c57-42c1-858c-6f806616e3a8
+xfsdump: session label: ""
+xfsrestore: searching media for dump
+....
+xfsdump: Dump Status: SUCCESS
+xfsrestore: restore complete: 93 seconds elapsed
+xfsrestore: Restore Status: SUCCESS
+[root@lvm ~]# ls /mnt
+bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  vagrant  var ```
+
+### Теперь необходимо перенастроить grub перед перезагрузкой. ###
+``` [root@lvm ~]# for a in /dev/ /proc/ /sys/ /run/ /boot/; do mount --bind /$a /mnt/$a; done
+[root@lvm ~]# chroot /mnt/
+[root@lvm /]# grub2-mkconfig -o /boot/grub2/grub.cfg
+Generating grub configuration file ...
+Found linux image: /boot/vmlinuz-3.10.0-862.2.3.el7.x86_64
+Found initrd image: /boot/initramfs-3.10.0-862.2.3.el7.x86_64.img
+done
+[root@lvm /]# cd /boot/
+[root@lvm boot]# for i in `ls initramfs-*img`; do dracut -v $i `echo $i|sed "s/initramfs-//g;s/.img//g"` --force; done
+Executing: /sbin/dracut -v initramfs-3.10.0-862.2.3.el7.x86_64.img 3.10.0-862.2.3.el7.x86_64 --force
+...
+*** Store current command line parameters ***
+*** Creating image file ***
+*** Creating image file done ***
+*** Creating initramfs image file '/boot/initramfs-3.10.0-862.2.3.el7.x86_64.img' done ***
+
+### В конфиге grub надо изменить rd.lvm.lv=VolGroup00/LogVol00  на rd.lvm.lv=VGroot/LVroot. воспользуемся vi  и потом перезагрузимся  ###
+
+[root@lvm boot]# grep 'rd.lvm.lv=VGroot/LVroot' /boot/grub2/grub.cfg
+linux16 /vmlinuz-3.10.0-862.2.3.el7.x86_64 root=/dev/mapper/VGroot-LVroot ro no_timer_check console=tty0 console=ttyS0,115200n8 net.ifnames=0 biosdevname=0 elevator=noop crashkernel=auto rd.lvm.lv=VGroot/LVroot rd.lvm.lv=VolGroup00/LogVol01 rhgb quiet 
+[root@lvm ~]# reboot 
+Connection to 127.0.0.1 closed by remote host.
+
+
+
