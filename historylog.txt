@@ -210,3 +210,62 @@ sdb                       8:16   0    1G  0 disk
 sdc                       8:32   0    1G  0 disk 
 sdd                       8:48   0    1G  0 disk 
 sde                       8:64   0    1G  0 disk 
+
+#Теперь сделаем VAR  в mirror#
+[root@lvm /]# pvcreate /dev/sdc /dev/sdd
+  Physical volume "/dev/sdc" successfully created.
+  Physical volume "/dev/sdd" successfully created.
+[root@lvm /]# pvs
+  PV         VG         Fmt  Attr PSize    PFree  
+  /dev/sda3  VolGroup00 lvm2 a--   <38.97g <29.47g
+  /dev/sdb   VGroot     lvm2 a--  1020.00m      0 
+  /dev/sdc              lvm2 ---     1.00g   1.00g
+  /dev/sdd              lvm2 ---     1.00g   1.00g
+[root@lvm /]# vgcreate VGvar /dev/sdc /dev/sdd
+  Volume group "VGvar" successfully created
+[root@lvm /]# vgs
+  VG         #PV #LV #SN Attr   VSize    VFree  
+  VGroot       1   1   0 wz--n- 1020.00m      0 
+  VGvar        2   0   0 wz--n-    1.99g   1.99g
+  VolGroup00   1   2   0 wz--n-  <38.97g <29.47g
+[root@lvm /]# lvcreate -L 950M -m1 -n LVvar VGvar
+  Rounding up size to full physical extent 952.00 MiB
+  Logical volume "LVvar" created.
+[root@lvm /]# lvs
+  LV       VG         Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  LVroot   VGroot     -wi-ao---- 1020.00m                                                    
+  LVvar    VGvar      rwi-a-r---  952.00m                                    46.62           
+  LogVol00 VolGroup00 -wi-ao----    8.00g                                                    
+  LogVol01 VolGroup00 -wi-ao----    1.50g
+  
+  #Отформатируем созданный раздел и подмонтируем его.#
+  
+  [root@lvm /]# mkfs.ext4 /dev/VGvar/LVvar 
+  ......
+  [root@lvm /]# mount /dev/VGvar/LVvar /mnt
+  #Переместим данные на новый раздел#
+  [root@lvm /]# rsync -PavHxXAS /var/ /mnt/
+  ...
+  sent 113,365,176 bytes  received 278,130 bytes  5,050,813.60 bytes/sec
+total size is 112,916,403  speedup is 0.99
+
+#Забекапим  "старый" var и смонтируем новый var в /var/#
+[root@lvm /]# mkdir /tmp/var; mv /var/* /tmp/var/
+[root@lvm /]# ls /var/ -al
+total 4
+drwxr-xr-x.  2 root root  22 Aug 12 14:37 .
+drwxr-xr-x. 18 root root 239 Aug 12 13:50 ..
+-rw-r--r--.  1 root root 163 May 12  2018 .updated
+[root@lvm /]# umount /mnt
+[root@lvm /]# mount /dev/VGvar/LVvar /var
+
+#поправим fstab, чтобы /var автомонтировался и перезагрузимся#
+[root@lvm /]# echo "`blkid | grep var: | awk '{print $2}'` /var ext4 defaults 0 0" >> /etc/fstab
+[root@lvm /]# grep var /etc/fstab
+UUID="9a3004d8-dd8b-4348-913c-18d47a54a4cf" /var ext4 defaults 0 0
+[root@lvm ~]# reboot 
+Connection to 127.0.0.1 closed by remote host.
+Connection to 127.0.0.1 closed.
+# Проверим мирроринг var и 8g директорию root после перезагрузки#
+
+
