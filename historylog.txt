@@ -1,5 +1,5 @@
 ## Начнем с уменьшения корневного раздела до8 G ##
-```sudo vagrant ssh
+sudo vagrant ssh
 [vagrant@lvm ~]$ sudo -i
 [root@lvm ~]# df -h
 Filesystem                       Size  Used Avail Use% Mounted on
@@ -40,11 +40,11 @@ sde                       8:64   0    1G  0 disk
   LV       VG         Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
   LVroot   VGroot     -wi-a----- 1020.00m                                                    
   LogVol00 VolGroup00 -wi-ao----  <37.47g                                                    
-  LogVol01 VolGroup00 -wi-ao----    1.50g```
+  LogVol01 VolGroup00 -wi-ao----    1.50g
   
   ## Создадим файловую систему на новом томе, потом подмонтируем его для копирования инфо ##
   
-  ``` [root@lvm ~]# mkfs.xfs /dev/VGroot/LVroot && mount /dev/VGroot/LVroot /mnt/
+ [root@lvm ~]# mkfs.xfs /dev/VGroot/LVroot && mount /dev/VGroot/LVroot /mnt/
 meta-data=/dev/VGroot/LVroot     isize=512    agcount=4, agsize=65280 blks
          =                       sectsz=512   attr=2, projid32bit=1
          =                       crc=1        finobt=0, sparse=0
@@ -70,10 +70,10 @@ xfsdump: Dump Status: SUCCESS
 xfsrestore: restore complete: 93 seconds elapsed
 xfsrestore: Restore Status: SUCCESS
 [root@lvm ~]# ls /mnt
-bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  vagrant  var ```
+bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  vagrant  var
 
 ### Теперь необходимо перенастроить grub перед перезагрузкой. ###
-``` [root@lvm ~]# for a in /dev/ /proc/ /sys/ /run/ /boot/; do mount --bind /$a /mnt/$a; done
+ [root@lvm ~]# for a in /dev/ /proc/ /sys/ /run/ /boot/; do mount --bind /$a /mnt/$a; done
 [root@lvm ~]# chroot /mnt/
 [root@lvm /]# grub2-mkconfig -o /boot/grub2/grub.cfg
 Generating grub configuration file ...
