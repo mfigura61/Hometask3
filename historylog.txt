@@ -1,5 +1,5 @@
 ## Начнем с уменьшения корневного раздела до8 G ##
-``` sudo vagrant ssh
+```sudo vagrant ssh
 [vagrant@lvm ~]$ sudo -i
 [root@lvm ~]# df -h
 Filesystem                       Size  Used Avail Use% Mounted on
@@ -40,7 +40,7 @@ sde                       8:64   0    1G  0 disk
   LV       VG         Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
   LVroot   VGroot     -wi-a----- 1020.00m                                                    
   LogVol00 VolGroup00 -wi-ao----  <37.47g                                                    
-  LogVol01 VolGroup00 -wi-ao----    1.50g   ```
+  LogVol01 VolGroup00 -wi-ao----    1.50g```
   
   ## Создадим файловую систему на новом томе, потом подмонтируем его для копирования инфо ##
   
